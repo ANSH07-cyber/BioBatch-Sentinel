@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BioBatch Sentinel — Analysis Report</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f6fb;color:#172033;
+font-family:Arial,Helvetica,sans-serif;line-height:1.6}
+header{background:#142b4a;color:white;padding:34px 7%}
+header h1{margin:0;font-size:30px}
+header p{color:#cbd8eb;margin:8px 0 0}
+main{max-width:1200px;margin:28px auto;padding:0 22px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
+.card,section{background:white;border:1px solid #e0e7f0;
+border-radius:12px;padding:20px;margin-bottom:20px}
+.card span{display:block;color:#65748b;font-size:13px}
+.card strong{font-size:27px;color:#16645c}
+h2{font-size:20px;margin:0 0 14px}
+.table-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:11px;border-bottom:1px solid #e7edf4}
+th{background:#edf3f9;text-transform:capitalize}
+tr:hover td{background:#f8fbff}
+.note{background:#fff8e7;border-left:4px solid #d69a24;
+padding:14px;border-radius:5px}
+.empty{color:#65748b}
+footer{text-align:center;color:#748196;padding:25px;font-size:12px}
+@media(max-width:600px){header h1{font-size:24px}main{padding:0 12px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>BioBatch Sentinel</h1>
+  <p>Scientific Dataset Quality & Analysis Report</p>
+  <p>Dataset: Complete_DataSet.xlsx · Mode: local</p>
+</header>
+<main>
+
+<section>
+  <h2>Dataset Overview</h2>
+  <div class="cards">
+    <div class="card"><span>Total Rows</span><strong>1950</strong></div>
+    <div class="card"><span>Total Columns</span><strong>49</strong></div>
+    <div class="card"><span>Numeric Columns</span><strong>45</strong></div>
+    <div class="card"><span>Categorical Columns</span><strong>4</strong></div>
+  </div>
+</section>
+
+<section>
+  <h2>Missing Data</h2>
+  
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>column</th><th>missing count</th><th>missing pct</th>
+        </tr></thead>
+        <tbody>
+          
+            <tr>
+              <td>EthAcetate</td><td>870</td><td>44.62</td>
+            </tr>
+          
+            <tr>
+              <td>Isobutanol</td><td>870</td><td>44.62</td>
+            </tr>
+          
+            <tr>
+              <td>IsoamylAcetate</td><td>870</td><td>44.62</td>
+            </tr>
+          
+            <tr>
+              <td>IsoamylAlcohol</td><td>870</td><td>44.62</td>
+            </tr>
+          
+            <tr>
+              <td>EthylHexanoate</td><td>870</td><td>44.62</td>
+            </tr>
+          
+            <tr>
+              <td>EthOctanoate</td><td>870</td><td>44.62</td>
+            </tr>
+          
+            <tr>
+              <td>PhenEthAcetate</td><td>870</td><td>44.62</td>
+            </tr>
+          
+            <tr>
+              <td>PhenEtoh</td><td>870</td><td>44.62</td>
+            </tr>
+          
+            <tr>
+              <td>OctanoicAcid</td><td>870</td><td>44.62</td>
+            </tr>
+          
+            <tr>
+              <td>DecanoicAcid</td><td>870</td><td>44.62</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+</section>
+
+<section>
+  <h2>Strongest Correlations</h2>
+  
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>feature</th><th>correlation</th><th>absolute correlation</th>
+        </tr></thead>
+        <tbody>
+          
+            <tr>
+              <td>Total</td><td>0.9145</td><td>0.9145</td>
+            </tr>
+          
+            <tr>
+              <td>Alanine</td><td>-0.7746</td><td>0.7746</td>
+            </tr>
+          
+            <tr>
+              <td>Tyrosine</td><td>-0.7681</td><td>0.7681</td>
+            </tr>
+          
+            <tr>
+              <td>Valine</td><td>-0.7606</td><td>0.7606</td>
+            </tr>
+          
+            <tr>
+              <td>Phenylalanine</td><td>-0.7425</td><td>0.7425</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  <p class="note">Correlation indicates association, not causation. Results need scientific interpretation.</p>
+</section>
+
+<section>
+  <h2>Strain Comparison</h2>
+  
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>strain</th><th>observations</th><th>mean viable</th><th>median viable</th>
+        </tr></thead>
+        <tbody>
+          
+            <tr>
+              <td>GALA</td><td>216</td><td>47000787.03703704</td><td>52500000</td>
+            </tr>
+          
+            <tr>
+              <td>OPA</td><td>216</td><td>44384027.777777776</td><td>48650000</td>
+            </tr>
+          
+            <tr>
+              <td>X5</td><td>216</td><td>41153611.11111111</td><td>45400000</td>
+            </tr>
+          
+            <tr>
+              <td>W12</td><td>216</td><td>40164083.333333336</td><td>43450000</td>
+            </tr>
+          
+            <tr>
+              <td>SAI</td><td>216</td><td>35034351.85185185</td><td>37050000</td>
+            </tr>
+          
+            <tr>
+              <td>VIN13</td><td>219</td><td>34365068.49315068</td><td>34400000</td>
+            </tr>
+          
+            <tr>
+              <td>DV10</td><td>216</td><td>33670569.44444445</td><td>38100000</td>
+            </tr>
+          
+            <tr>
+              <td>X16</td><td>216</td><td>29510601.85185185</td><td>30150000</td>
+            </tr>
+          
+            <tr>
+              <td>TXL</td><td>213</td><td>25232279.021126762</td><td>27400000</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  <p class="note">Group statistics are descriptive. Differences may reflect experimental conditions, time points or sample sizes.</p>
+</section>
+
+<section>
+  <h2>Time-Course Analysis</h2>
+  <p><b>Response:</b> Viable</p>
+  <p><b>Group:</b> Strain</p>
+  <p><b>Rows used:</b> 1944</p>
+  <p><b>Rows excluded:</b> 6</p>
+  
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Temperature</th><th>MS</th><th>Strain</th><th>first timepoint</th><th>last timepoint</th><th>first median time</th><th>last median time</th><th>start mean</th><th>end mean</th><th>absolute change</th><th>relative change pct</th><th>timepoints observed</th>
+        </tr></thead>
+        <tbody>
+          
+            <tr>
+              <td>12</td><td>210</td><td>DV10</td><td>t0</td><td>t8</td><td>0</td><td>599</td><td>860666.6666666666</td><td>40000000</td><td>39139333.333333336</td><td>4547.560030983734</td><td>9</td>
+            </tr>
+          
+            <tr>
+              <td>12</td><td>210</td><td>GALA</td><td>t0</td><td>t8</td><td>0</td><td>694.5</td><td>1946666.6666666667</td><td>25133333.333333332</td><td>23186666.666666664</td><td>1191.0958904109589</td><td>9</td>
+            </tr>
+          
+            <tr>
+              <td>12</td><td>210</td><td>OPA</td><td>t0</td><td>t8</td><td>0</td><td>599</td><td>4210000</td><td>58100000</td><td>53890000</td><td>1280.0475059382422</td><td>9</td>
+            </tr>
+          
+            <tr>
+              <td>12</td><td>210</td><td>SAI</td><td>t0</td><td>t8</td><td>0</td><td>599</td><td>3096666.6666666665</td><td>23633333.333333332</td><td>20536666.666666664</td><td>663.1862217438105</td><td>9</td>
+            </tr>
+          
+            <tr>
+              <td>12</td><td>210</td><td>TXL</td><td>t0</td><td>t8</td><td>0</td><td>694.5</td><td>3116666.6666666665</td><td>20166666.666666668</td><td>17050000</td><td>547.0588235294118</td><td>9</td>
+            </tr>
+          
+            <tr>
+              <td>12</td><td>210</td><td>VIN13</td><td>t0</td><td>t8</td><td>0</td><td>694.5</td><td>2193333.3333333335</td><td>33233333.333333332</td><td>31040000</td><td>1415.1975683890576</td><td>9</td>
+            </tr>
+          
+            <tr>
+              <td>12</td><td>210</td><td>W12</td><td>t0</td><td>t8</td><td>0</td><td>599</td><td>841666.6666666666</td><td>36133333.333333336</td><td>35291666.66666667</td><td>4193.069306930694</td><td>9</td>
+            </tr>
+          
+            <tr>
+              <td>12</td><td>210</td><td>X16</td><td>t0</td><td>t8</td><td>0</td><td>599</td><td>4653333.333333333</td><td>27366666.666666668</td><td>22713333.333333336</td><td>488.1088825214901</td><td>9</td>
+            </tr>
+          
+            <tr>
+              <td>12</td><td>210</td><td>X5</td><td>t0</td><td>t8</td><td>0</td><td>599</td><td>2713333.3333333335</td><td>31033333.333333332</td><td>28320000</td><td>1043.7346437346437</td><td>9</td>
+            </tr>
+          
+            <tr>
+              <td>12</td><td>250</td><td>DV10</td><td>t0</td><td>t8</td><td>0</td><td>694.5</td><td>834666.6666666666</td><td>32733333.333333332</td><td>31898666.666666664</td><td>3821.725239616613</td><td>9</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+</section>
+
+<section>
+  <h2>Outlier Review</h2>
+  <p><b>Column:</b> Viable</p>
+  <p><b>Detection method:</b> 1.5 × IQR rule</p>
+  <p><b>Flagged observations:</b> 1</p>
+  
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>row index</th><th>Viable</th><th>Strain</th>
+        </tr></thead>
+        <tbody>
+          
+            <tr>
+              <td>1434</td><td>145000000</td><td>W12</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  <p class="note">A flagged observation is not automatically an error. Review it against the original records and experimental context.</p>
+</section>
+
+<section>
+  <h2>Analysis Trace</h2>
+  
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Step</th><th>Tool</th><th>Status</th>
+        </tr></thead>
+        <tbody>
+          
+            <tr>
+              <td>1</td><td>inspect_data</td><td>Executed</td>
+            </tr>
+          
+            <tr>
+              <td>2</td><td>missingness_report</td><td>Executed</td>
+            </tr>
+          
+            <tr>
+              <td>3</td><td>correlation_scan</td><td>Executed</td>
+            </tr>
+          
+            <tr>
+              <td>4</td><td>group_comparison</td><td>Executed</td>
+            </tr>
+          
+            <tr>
+              <td>5</td><td>time_course_analysis</td><td>Executed</td>
+            </tr>
+          
+            <tr>
+              <td>6</td><td>outlier_scan</td><td>Executed</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+</section>
+
+<section>
+  <h2>Important Notes</h2>
+  <p>Descriptive analysis only. Correlations do not establish causation, and flagged outliers require scientific review.</p>
+  <p>Interpret findings in the context of experimental design, data quality and domain expertise.</p>
+</section>
+
+</main>
+<footer>BioBatch Sentinel · Locally generated analysis report</footer>
+</body>
+</html>
