@@ -1,0 +1,345 @@
+{
+  "name": "BioBatch Sentinel",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        496,
+        -240
+      ],
+      "id": "ff09bb5b-5ccd-4987-9e44-e97621500f8c",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c3607d55-91fc-43c6-82e9-7a2bf38baf75",
+              "name": "filename",
+              "value": "Complete_DataSet.xlsx",
+              "type": "string"
+            },
+            {
+              "id": "59a7b10c-48fd-41fa-95fa-7036277072b8",
+              "name": "target",
+              "value": "Viable",
+              "type": "string"
+            },
+            {
+              "id": "77c96ef7-3028-4365-accc-3bb8af81cbe1",
+              "name": "group_column",
+              "value": "Strain",
+              "type": "string"
+            },
+            {
+              "id": "bf6842e0-8cad-40fa-8128-eddee090fdf3",
+              "name": "question",
+              "value": "={{ $json.question || \"Run a complete dataset audit covering missing values, strain comparison, correlations, outliers and time-course trends.\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        496,
+        16
+      ],
+      "id": "5884466f-4294-4a9d-aa55-c203b2bed780",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/agent-audit",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "filename",
+              "value": "={{ $json.filename }}"
+            },
+            {
+              "name": "target",
+              "value": "={{ $json.target }}"
+            },
+            {
+              "name": "group_column",
+              "value": "={{ $json.group_column }}"
+            },
+            {
+              "name": "question",
+              "value": "={{ $json.question }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        0
+      ],
+      "id": "b6e7549a-65ae-4359-b248-856394605b0f",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// BioBatch Sentinel — Question-Aware JSON Formatter\n// n8n Code node mode: Run Once for All Items\n\nconst raw = $input.first().json ?? {};\nconst data = Array.isArray(raw) ? (raw[0] ?? {}) : raw;\n\n// --------------------------------------------------\n// 1. Read analysis trace and tool evidence\n// --------------------------------------------------\n\nconst trace = Array.isArray(data.trace) ? data.trace : [];\nconst compactEvidence = Array.isArray(data.compact_evidence)\n  ? data.compact_evidence\n  : [];\n\nconst results = {};\n\nfor (const step of trace) {\n  if (step?.tool && step?.result) {\n    results[step.tool] = step.result;\n  }\n}\n\n// Use compact evidence as a fallback if a tool result\n// was not included in the regular trace.\nfor (const item of compactEvidence) {\n  if (\n    item?.tool &&\n    item?.result &&\n    !results[item.tool]\n  ) {\n    results[item.tool] = item.result;\n  }\n}\n\n// --------------------------------------------------\n// 2. Read verified facts and profile\n// --------------------------------------------------\n\nconst verifiedFacts = data.verified_facts ?? {};\n\nconst profile =\n  data.profile ??\n  results.inspect_data ??\n  {};\n\nconst targetStats =\n  verifiedFacts.target_statistics ??\n  data.target_statistics ??\n  null;\n\nconst missingResult = results.missingness_report ?? {};\nconst correlationResult = results.correlation_scan ?? {};\nconst groupResult = results.group_comparison ?? {};\nconst timeCourse = results.time_course_analysis ?? {};\nconst outliers = results.outlier_scan ?? {};\n\nconst question = String(\n  data.agent_question ??\n  data.question ??\n  \"\"\n);\n\nconst selectedTools =\n  Array.isArray(data.selected_tools) &&\n  data.selected_tools.length\n    ? data.selected_tools\n    : trace\n        .map(step => step?.tool)\n        .filter(tool => tool && tool !== \"inspect_data\");\n\nconst hasTool = name => selectedTools.includes(name);\n\n// --------------------------------------------------\n// 3. Formatting helpers\n// --------------------------------------------------\n\nconst formatNumber = (value, digits = 2) => {\n  const number = Number(value);\n\n  if (value === null || value === undefined || value === \"\") {\n    return \"—\";\n  }\n\n  if (!Number.isFinite(number)) {\n    return String(value);\n  }\n\n  return number.toLocaleString(\"en-IN\", {\n    maximumFractionDigits: digits\n  });\n};\n\nconst arrayOrEmpty = value =>\n  Array.isArray(value) ? value : [];\n\n// --------------------------------------------------\n// 4. Missing-data results\n// Prefer Python-verified full column details.\n// Sort largest missing count first.\n// --------------------------------------------------\n\nconst missingSource =\n  arrayOrEmpty(verifiedFacts.missing_column_details).length\n    ? verifiedFacts.missing_column_details\n    : arrayOrEmpty(missingResult.columns_with_missing_values);\n\nconst missingDataAll = [...missingSource].sort(\n  (a, b) =>\n    Number(b.missing_count ?? 0) -\n    Number(a.missing_count ?? 0)\n);\n\nconst missingData = missingDataAll.slice(0, 10);\n\n// --------------------------------------------------\n// 5. Correlations\n// --------------------------------------------------\n\nconst correlationsSource =\n  arrayOrEmpty(correlationResult.associations).length\n    ? correlationResult.associations\n    : arrayOrEmpty(data.strongest_correlations);\n\nconst correlations = [...correlationsSource]\n  .sort(\n    (a, b) =>\n      Number(b.absolute_correlation ?? Math.abs(b.correlation ?? 0)) -\n      Number(a.absolute_correlation ?? Math.abs(a.correlation ?? 0))\n  )\n  .slice(0, 5);\n\n// --------------------------------------------------\n// 6. Group comparisons\n// --------------------------------------------------\n\nconst groupStatsSource =\n  arrayOrEmpty(groupResult.group_statistics).length\n    ? groupResult.group_statistics\n    : arrayOrEmpty(verifiedFacts.group_statistics);\n\nconst groupStats = [...groupStatsSource].sort(\n  (a, b) => Number(b.mean ?? 0) - Number(a.mean ?? 0)\n);\n\nconst strainComparison = groupStats.map(group => ({\n  strain: group.group ?? group.strain ?? \"Unknown\",\n  observations: group.n ?? group.observations ?? null,\n  mean_viable: group.mean ?? group.mean_viable ?? null,\n  median_viable: group.median ?? group.median_viable ?? null\n}));\n\n// --------------------------------------------------\n// 7. Time-course results\n// --------------------------------------------------\n\nconst trendSummary = arrayOrEmpty(timeCourse.trend_summary);\n\nconst timeCourseSummary = {\n  response:\n    timeCourse.response_column ??\n    timeCourse.response ??\n    null,\n\n  group:\n    timeCourse.group_column ??\n    timeCourse.group ??\n    null,\n\n  rows_used:\n    timeCourse.rows_used ??\n    null,\n\n  rows_excluded:\n    timeCourse.rows_excluded_for_missing_response_group_or_time ??\n    timeCourse.rows_excluded ??\n    null,\n\n  sample_trends: trendSummary.slice(0, 10)\n};\n\n// --------------------------------------------------\n// 8. Outlier results\n// --------------------------------------------------\n\nconst outlierObservations =\n  arrayOrEmpty(outliers.observations_shown).length\n    ? outliers.observations_shown\n    : arrayOrEmpty(outliers.observations).length\n      ? outliers.observations\n      : arrayOrEmpty(outliers.flagged_observations);\n\nconst outlierSummary = {\n  column: outliers.column ?? null,\n  method: outliers.method ?? null,\n  lower_bound: outliers.lower_bound ?? null,\n  upper_bound: outliers.upper_bound ?? null,\n\n  flagged_count:\n    outliers.flagged_count ??\n    outliers.count ??\n    outlierObservations.length,\n\n  observations: outlierObservations\n};\n\n// --------------------------------------------------\n// 9. Build a question-specific deterministic summary\n// for focused single-tool requests.\n// For a multi-tool audit, retain the existing summary.\n// --------------------------------------------------\n\nconst buildQuestionSummary = () => {\n  // MISSING-DATA QUESTION\n  if (\n    selectedTools.length === 1 &&\n    hasTool(\"missingness_report\")\n  ) {\n    const totalMissing =\n      verifiedFacts.total_missing_cells ??\n      missingResult.total_missing_cells ??\n      0;\n\n    const columnsWithMissing =\n      verifiedFacts.columns_with_missing_values_count ??\n      missingResult.columns_with_missing_values_count ??\n      missingDataAll.length;\n\n    const totalColumns =\n      verifiedFacts.dataset_columns ??\n      profile.columns_count ??\n      0;\n\n    const highestCount = Number(\n      missingDataAll[0]?.missing_count ?? 0\n    );\n\n    const highestColumns = missingDataAll.filter(\n      item => Number(item.missing_count ?? 0) === highestCount\n    );\n\n    const lowerLevels = [\n      ...new Set(\n        missingDataAll\n          .map(item => Number(item.missing_count ?? 0))\n          .filter(count => count < highestCount)\n      )\n    ].sort((a, b) => b - a);\n\n    const lines = [\n      \"# Missing-Data Findings\",\n      \"\",\n      `The dataset contains ${formatNumber(totalMissing, 0)} missing cells in total. ${columnsWithMissing} of ${totalColumns} columns contain missing values.`,\n      \"\",\n      \"## Columns with the highest missingness\",\n      \"\",\n      `${highestColumns.length} columns are tied at ${formatNumber(highestCount, 0)} missing values each (${formatNumber(highestColumns[0]?.missing_pct ?? 0, 2)}%): ${highestColumns.map(item => item.column).join(\", \")}.`,\n      \"\",\n      \"## Other missingness levels\",\n      \"\"\n    ];\n\n    if (lowerLevels.length === 0) {\n      lines.push(\"No additional missingness levels.\");\n    } else {\n      for (const count of lowerLevels) {\n        const group = missingDataAll.filter(\n          item => Number(item.missing_count ?? 0) === count\n        );\n\n        lines.push(\n          `${group.length} column(s) have ${formatNumber(count, 0)} missing values each (${formatNumber(group[0]?.missing_pct ?? 0, 2)}%).`\n        );\n        lines.push(\"\");\n      }\n    }\n\n    return lines.join(\"\\n\");\n  }\n\n  // STRAIN / GROUP COMPARISON QUESTION\n  if (\n    selectedTools.length === 1 &&\n    hasTool(\"group_comparison\")\n  ) {\n    const wantsLowest =\n      /\\b(lowest|smallest|least|bottom|minimum)\\b/i.test(question);\n\n    const ranked = [...groupStats].sort((a, b) =>\n      wantsLowest\n        ? Number(a.mean ?? 0) - Number(b.mean ?? 0)\n        : Number(b.mean ?? 0) - Number(a.mean ?? 0)\n    );\n\n    const topGroups = ranked.slice(0, 3);\n\n    const groupLabel =\n      groupResult.group_column ??\n      verifiedFacts.group_column ??\n      \"group\";\n\n    const responseLabel =\n      groupResult.response_column ??\n      verifiedFacts.target_column ??\n      \"target\";\n\n    const heading = wantsLowest\n      ? \"Three groups with the lowest mean\"\n      : \"Top 3 groups by mean\";\n\n    const lines = [\n      \"# Answer to Your Question\",\n      \"\",\n      question,\n      \"\",\n      `## ${heading}`,\n      \"\"\n    ];\n\n    for (let i = 0; i < topGroups.length; i++) {\n      const group = topGroups[i];\n\n      lines.push(\n        `${i + 1}. **${group.group ?? group.strain}** — mean ${formatNumber(group.mean ?? group.mean_viable, 2)}; n = ${formatNumber(group.n ?? group.observations, 0)} observations.`\n      );\n      lines.push(\"\");\n    }\n\n    lines.push(\n      `These are descriptive mean ${responseLabel} values across ${groupLabel} groups. No statistical significance test is implied.`\n    );\n\n    return lines.join(\"\\n\");\n  }\n\n  // CORRELATION QUESTION\n  if (\n    selectedTools.length === 1 &&\n    hasTool(\"correlation_scan\")\n  ) {\n    const target =\n      correlationResult.target ??\n      verifiedFacts.target_column ??\n      \"target\";\n\n    const lines = [\n      \"# Correlation Findings\",\n      \"\",\n      `The analysis evaluated Pearson correlations with **${target}**.`,\n      \"\",\n      \"## Strongest reported associations\",\n      \"\"\n    ];\n\n    if (correlations.length === 0) {\n      lines.push(\"No correlation results were returned.\");\n    } else {\n      correlations.forEach((item, index) => {\n        const direction =\n          Number(item.correlation) < 0\n            ? \"negative\"\n            : \"positive\";\n\n        lines.push(\n          `${index + 1}. **${item.feature}** — r = ${formatNumber(item.correlation, 4)} (${direction} association).`\n        );\n        lines.push(\"\");\n      });\n    }\n\n    lines.push(\n      \"Correlation indicates association, not causation.\"\n    );\n\n    return lines.join(\"\\n\");\n  }\n\n  // OUTLIER QUESTION\n  if (\n    selectedTools.length === 1 &&\n    hasTool(\"outlier_scan\")\n  ) {\n    const lines = [\n      \"# Outlier Review\",\n      \"\",\n      `Column: ${outlierSummary.column ?? \"Not specified\"}`,\n      `Detection method: ${outlierSummary.method ?? \"Not specified\"}`,\n      `Flagged observations: ${formatNumber(outlierSummary.flagged_count, 0)}`,\n      \"\"\n    ];\n\n    if (outlierObservations.length > 0) {\n      lines.push(\"## Observations flagged for review\");\n      lines.push(\"\");\n\n      for (const item of outlierObservations) {\n        lines.push(\n          `- Row ${item.row_index ?? \"unknown\"}: value ${formatNumber(item[outlierSummary.column ?? \"Viable\"], 2)}; strain ${item.Strain ?? \"not reported\"}.`\n        );\n      }\n\n      lines.push(\"\");\n    }\n\n    lines.push(\n      \"An outlier flag is not proof of a data-entry error. Review the original record and experimental context before changing measurements.\"\n    );\n\n    return lines.join(\"\\n\");\n  }\n\n  // TIME-COURSE QUESTION\n  if (\n    selectedTools.length === 1 &&\n    hasTool(\"time_course_analysis\")\n  ) {\n    const lines = [\n      \"# Time-Course Findings\",\n      \"\",\n      `Response column: ${timeCourseSummary.response ?? \"Not specified\"}`,\n      `Group column: ${timeCourseSummary.group ?? \"Not specified\"}`,\n      `Rows used: ${formatNumber(timeCourseSummary.rows_used, 0)}`,\n      `Rows excluded: ${formatNumber(timeCourseSummary.rows_excluded, 0)}`,\n      \"\",\n      \"## Sample trends\",\n      \"\"\n    ];\n\n    if (trendSummary.length === 0) {\n      lines.push(\"The time-course tool returned no trend summaries.\");\n    } else {\n      for (const item of trendSummary.slice(0, 5)) {\n        lines.push(\n          `- ${item.Strain ?? \"Unknown strain\"} (Temperature ${item.Temperature ?? \"—\"}, MS ${item.MS ?? \"—\"}): start mean ${formatNumber(item.start_mean, 2)}, end mean ${formatNumber(item.end_mean, 2)}, change ${formatNumber(item.absolute_change, 2)} across ${formatNumber(item.timepoints_observed, 0)} observed timepoints.`\n        );\n      }\n    }\n\n    lines.push(\"\");\n    lines.push(\n      \"These are descriptive summaries of observed timepoints. They do not establish causation.\"\n    );\n\n    return lines.join(\"\\n\");\n  }\n\n  // Broad multi-tool analysis keeps the existing deterministic summary.\n  return data.agent_summary ?? \"No summary returned.\";\n};\n\nconst questionSummary = buildQuestionSummary();\n\n// --------------------------------------------------\n// 10. Dataset summary\n// --------------------------------------------------\n\nconst datasetSummary = {\n  rows:\n    profile.rows ??\n    verifiedFacts.dataset_rows ??\n    null,\n\n  columns:\n    profile.columns_count ??\n    verifiedFacts.dataset_columns ??\n    null,\n\n  numeric_columns:\n    Array.isArray(profile.numeric_columns)\n      ? profile.numeric_columns.length\n      : verifiedFacts.numeric_column_count ?? 0,\n\n  categorical_columns:\n    Array.isArray(profile.categorical_columns)\n      ? profile.categorical_columns.length\n      : verifiedFacts.categorical_column_count ?? 0,\n\n  total_missing_cells:\n    verifiedFacts.total_missing_cells ?? null,\n\n  columns_with_missing_values:\n    verifiedFacts.columns_with_missing_values_count ?? null\n};\n\n// --------------------------------------------------\n// 11. Prepare analysis trace for the report\n// --------------------------------------------------\n\nconst analysisTrace = trace.map((step, index) => ({\n  step: step.step ?? index,\n  tool: step.tool ?? \"unknown\",\n  reason: step.reason ?? \"\",\n  error: step.result?.error ?? null\n}));\n\n// --------------------------------------------------\n// 12. Return complete JSON formatter output\n// --------------------------------------------------\n\nreturn [{\n  json: {\n    project: data.project ?? \"BioBatch Sentinel\",\n    mode: data.mode ?? \"local\",\n    filename: data.filename ?? raw.filename ?? \"unknown\",\n    model: data.model ?? null,\n\n    planner_status: data.planner_status ?? \"not reported\",\n    summary_source:\n      data.summary_source ??\n      \"deterministic Python statistics and local tool results\",\n\n    agent_question: question || null,\n    plan_summary: data.plan_summary ?? \"\",\n    selected_tools: selectedTools,\n\n    // Question-aware summary used by both JSON and HTML reports.\n    agent_summary: questionSummary,\n\n    // Authoritative statistics calculated using Python.\n    verified_facts: verifiedFacts,\n    target_statistics: targetStats,\n\n    dataset_summary: datasetSummary,\n\n    tools_executed: trace.map(step => step.tool),\n\n    // Preview and complete missingness table, sorted by count.\n    missing_data: missingData,\n    missing_data_all: missingDataAll,\n\n    strongest_correlations: correlations,\n\n    strain_comparison: strainComparison,\n\n    time_course_summary: timeCourseSummary,\n\n    outlier_summary: outlierSummary,\n\n    analysis_trace: analysisTrace,\n\n    caution:\n      data.caution ??\n      \"Descriptive analysis only. Verify findings against the original data and experimental context. Correlation does not establish causation.\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "39ce6c73-6b5e-4ec6-b797-1432560e7049",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "options": {
+          "fileName": "biobatch_sentinel_report.json"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "d8054de7-d5e0-40c9-b64d-50f3aade318e",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/reports/biobatch_sentinel_report.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        0
+      ],
+      "id": "3c377d2b-c214-476c-ab18-19dbc9c846d0",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst report = $input.first().json ?? {};\n\nconst selectedTools = Array.isArray(report.selected_tools)\n  ? report.selected_tools\n  : [];\n\nconst executedTools = Array.isArray(report.tools_executed)\n  ? report.tools_executed\n  : [];\n\nconst hasTool = (name) =>\n  selectedTools.includes(name) ||\n  (selectedTools.length === 0 && executedTools.includes(name));\n\nconst dataset = report.dataset_summary ?? {};\nconst targetStats = report.target_statistics ?? {};\nconst verified = report.verified_facts ?? {};\n\nfunction escapeHtml(value) {\n  return String(value ?? \"\")\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\")\n    .replace(/'/g, \"&#39;\");\n}\n\nfunction formatNumber(value, decimals = 2) {\n  if (value === null || value === undefined || value === \"\") {\n    return \"—\";\n  }\n\n  const number = Number(value);\n\n  if (!Number.isFinite(number)) {\n    return String(value);\n  }\n\n  return new Intl.NumberFormat(\"en-US\", {\n    minimumFractionDigits: 0,\n    maximumFractionDigits: decimals\n  }).format(number);\n}\n\nfunction formatPercent(value) {\n  if (value === null || value === undefined || value === \"\") {\n    return \"—\";\n  }\n\n  const text = String(value);\n\n  if (text.endsWith(\"%\")) {\n    return text;\n  }\n\n  return `${formatNumber(value, 2)}%`;\n}\n\nfunction makeTable(headers, rows) {\n  if (!Array.isArray(rows) || rows.length === 0) {\n    return '<p class=\"empty\">No records available for this analysis.</p>';\n  }\n\n  const head = headers\n    .map((header) => `<th>${escapeHtml(header)}</th>`)\n    .join(\"\");\n\n  const body = rows\n    .map((row) => {\n      const cells = row\n        .map((cell) => `<td>${escapeHtml(cell)}</td>`)\n        .join(\"\");\n\n      return `<tr>${cells}</tr>`;\n    })\n    .join(\"\");\n\n  return `\n    <div class=\"table-wrap\">\n      <table>\n        <thead><tr>${head}</tr></thead>\n        <tbody>${body}</tbody>\n      </table>\n    </div>\n  `;\n}\n\nfunction markdownInline(text) {\n  return text\n    .replace(/`([^`]+)`/g, \"<code>$1</code>\")\n    .replace(/\\*\\*(.+?)\\*\\*/g, \"<strong>$1</strong>\")\n    .replace(/\\*(.+?)\\*/g, \"<em>$1</em>\");\n}\n\nfunction renderMarkdown(markdown) {\n  const lines = String(markdown ?? \"\")\n    .replace(/\\r/g, \"\")\n    .split(\"\\n\");\n\n  const output = [];\n  let listType = null;\n\n  function closeList() {\n    if (listType) {\n      output.push(`</${listType}>`);\n      listType = null;\n    }\n  }\n\n  for (const originalLine of lines) {\n    const line = originalLine.trim();\n\n    if (!line) {\n      closeList();\n      continue;\n    }\n\n    const heading = line.match(/^(#{1,3})\\s+(.+)$/);\n\n    if (heading) {\n      closeList();\n\n      const level = heading[1].length + 1;\n      output.push(\n        `<h${level}>${markdownInline(heading[2])}</h${level}>`\n      );\n      continue;\n    }\n\n    const bullet = line.match(/^[-*]\\s+(.+)$/);\n\n    if (bullet) {\n      if (listType !== \"ul\") {\n        closeList();\n        output.push(\"<ul>\");\n        listType = \"ul\";\n      }\n\n      output.push(`<li>${markdownInline(bullet[1])}</li>`);\n      continue;\n    }\n\n    const numbered = line.match(/^\\d+\\.\\s+(.+)$/);\n\n    if (numbered) {\n      if (listType !== \"ol\") {\n        closeList();\n        output.push(\"<ol>\");\n        listType = \"ol\";\n      }\n\n      output.push(`<li>${markdownInline(numbered[1])}</li>`);\n      continue;\n    }\n\n    closeList();\n    output.push(`<p>${markdownInline(line)}</p>`);\n  }\n\n  closeList();\n\n  return output.join(\"\\n\");\n}\n\n// Dataset overview\nconst overviewCards = [\n  [\"Total Rows\", dataset.rows],\n  [\"Total Columns\", dataset.columns],\n  [\"Numeric Columns\", dataset.numeric_columns],\n  [\"Categorical Columns\", dataset.categorical_columns],\n  [\"Missing Cells\", dataset.total_missing_cells],\n  [\"Columns with Missing Values\", dataset.columns_with_missing_values]\n];\n\nconst overviewHtml = overviewCards\n  .map(([label, value]) => `\n    <div class=\"card\">\n      <span>${escapeHtml(label)}</span>\n      <strong>${escapeHtml(\n        value === undefined || value === null\n          ? \"—\"\n          : formatNumber(value, 0)\n      )}</strong>\n    </div>\n  `)\n  .join(\"\");\n\n// Preserve the summary created by the analysis agent.\n// Do not replace a multi-tool answer with only missing-data findings.\nlet summaryMarkdown = String(\n  report.agent_summary ?? \"No analysis summary was returned.\"\n);\n\n// Avoid repeating the outer section title.\nsummaryMarkdown = summaryMarkdown.replace(\n  /^# Answer to Your Question\\s*/i,\n  \"\"\n);\n\nconst summaryHtml = renderMarkdown(summaryMarkdown);\n\n// Missing-data section\nconst missingData = Array.isArray(report.missing_data_all)\n  ? report.missing_data_all\n  : Array.isArray(report.missing_data)\n    ? report.missing_data\n    : Array.isArray(verified.missing_column_details)\n      ? verified.missing_column_details\n      : [];\n\nconst missingSection = hasTool(\"missingness_report\")\n  ? `\n    <section>\n      <h2>Missing Data</h2>\n      <p>\n        ${escapeHtml(formatNumber(\n          dataset.columns_with_missing_values ?? missingData.length,\n          0\n        ))}\n        column(s) with missing values were reported.\n      </p>\n      ${makeTable(\n        [\"Column\", \"Missing Count\", \"Missing Percentage\"],\n        missingData.map((item) => [\n          item.column ?? \"—\",\n          formatNumber(item.missing_count, 0),\n          formatPercent(item.missing_pct)\n        ])\n      )}\n    </section>\n  `\n  : \"\";\n\n// Correlation section\nconst correlations = Array.isArray(report.strongest_correlations)\n  ? report.strongest_correlations\n  : [];\n\nconst correlationSection = hasTool(\"correlation_scan\")\n  ? `\n    <section>\n      <h2>Strongest Correlations</h2>\n      <p>\n        The table shows the strongest reported associations with\n        the selected target, Viable. Positive and negative values\n        indicate different directions of linear association.\n      </p>\n      ${makeTable(\n        [\"Feature\", \"Correlation\", \"Absolute Correlation\"],\n        correlations.map((item) => [\n          item.feature ?? \"—\",\n          formatNumber(item.correlation, 4),\n          formatNumber(item.absolute_correlation, 4)\n        ])\n      )}\n      <p class=\"note\">\n        Correlation indicates association, not causation.\n        Results may be influenced by confounding factors or\n        relationships between measured variables.\n      </p>\n    </section>\n  `\n  : \"\";\n\n// Strain comparison section\nconst strainComparison = Array.isArray(report.strain_comparison)\n  ? [...report.strain_comparison].sort(\n      (a, b) => Number(b.mean_viable) - Number(a.mean_viable)\n    )\n  : [];\n\nconst strainSection = hasTool(\"group_comparison\")\n  ? `\n    <section>\n      <h2>Strain Comparison</h2>\n      <p>\n        Strains are ordered from highest to lowest mean Viable count.\n        These are descriptive comparisons.\n      </p>\n      ${makeTable(\n        [\"Strain\", \"Observations\", \"Mean Viable\", \"Median Viable\"],\n        strainComparison.map((item) => [\n          item.strain ?? \"—\",\n          formatNumber(item.observations, 0),\n          formatNumber(item.mean_viable, 2),\n          formatNumber(item.median_viable, 2)\n        ])\n      )}\n      <p class=\"note\">\n        The highest descriptive mean does not by itself prove\n        statistical significance or biological superiority.\n        Formal statistical tests were not performed by this pipeline.\n      </p>\n    </section>\n  `\n  : \"\";\n\n// Time-course section\nconst timeCourse = report.time_course_summary ?? {};\nconst trends = Array.isArray(timeCourse.sample_trends)\n  ? timeCourse.sample_trends\n  : [];\n\nconst trendColumns = trends.length\n  ? [...new Set(trends.flatMap((item) => Object.keys(item)))]\n  : [];\n\nconst timeCourseSection = hasTool(\"time_course_analysis\")\n  ? `\n    <section>\n      <h2>Time-Course Analysis</h2>\n      <div class=\"cards\">\n        <div class=\"card\">\n          <span>Response</span>\n          <strong>${escapeHtml(timeCourse.response ?? \"—\")}</strong>\n        </div>\n        <div class=\"card\">\n          <span>Group</span>\n          <strong>${escapeHtml(timeCourse.group ?? \"—\")}</strong>\n        </div>\n        <div class=\"card\">\n          <span>Rows Used</span>\n          <strong>${escapeHtml(\n            timeCourse.rows_used == null\n              ? \"—\"\n              : formatNumber(timeCourse.rows_used, 0)\n          )}</strong>\n        </div>\n        <div class=\"card\">\n          <span>Rows Excluded</span>\n          <strong>${escapeHtml(\n            timeCourse.rows_excluded == null\n              ? \"—\"\n              : formatNumber(timeCourse.rows_excluded, 0)\n          )}</strong>\n        </div>\n      </div>\n      ${\n        trends.length\n          ? makeTable(\n              trendColumns,\n              trends.map((item) =>\n                trendColumns.map((key) => {\n                  const value = item[key];\n\n                  return typeof value === \"number\"\n                    ? formatNumber(value, 4)\n                    : value ?? \"—\";\n                })\n              )\n            )\n          : '<p class=\"empty\">No sample trend records were returned.</p>'\n      }\n    </section>\n  `\n  : \"\";\n\n// Outlier section\nconst outlier = report.outlier_summary ?? {};\nconst outlierObservations = Array.isArray(outlier.observations)\n  ? outlier.observations\n  : [];\n\nconst outlierSection = hasTool(\"outlier_scan\")\n  ? `\n    <section>\n      <h2>Outlier Review</h2>\n      <div class=\"meta\">\n        <p><strong>Column:</strong> ${escapeHtml(outlier.column ?? \"—\")}</p>\n        <p><strong>Method:</strong> ${escapeHtml(outlier.method ?? \"—\")}</p>\n        <p><strong>Lower Bound:</strong> ${escapeHtml(\n          formatNumber(outlier.lower_bound, 2)\n        )}</p>\n        <p><strong>Upper Bound:</strong> ${escapeHtml(\n          formatNumber(outlier.upper_bound, 2)\n        )}</p>\n        <p><strong>Flagged Observations:</strong> ${escapeHtml(\n          formatNumber(outlier.flagged_count ?? outlierObservations.length, 0)\n        )}</p>\n      </div>\n      ${makeTable(\n        [\"Row Index\", \"Value\", \"Strain\"],\n        outlierObservations.map((item) => [\n          item.row_index ?? \"—\",\n          formatNumber(item[outlier.column ?? \"Viable\"], 2),\n          item.Strain ?? item.strain ?? \"—\"\n        ])\n      )}\n      <p class=\"note\">\n        An outlier flag is not proof of an incorrect measurement.\n        Check the original record and experimental context before\n        deciding whether any data should be changed.\n      </p>\n    </section>\n  `\n  : \"\";\n\n// Analysis trace\nconst trace = Array.isArray(report.analysis_trace)\n  ? report.analysis_trace\n  : [];\n\nconst traceSection = `\n  <section>\n    <h2>Analysis Trace</h2>\n    <p>\n      This records the analysis tools selected or reported by\n      the workflow and any errors included in the output.\n    </p>\n    ${makeTable(\n      [\"Step\", \"Tool\", \"Reason\", \"Error\"],\n      trace.map((item) => [\n        item.step ?? \"—\",\n        item.tool ?? \"—\",\n        item.reason ?? \"—\",\n        item.error ?? \"None\"\n      ])\n    )}\n  </section>\n`;\n\n// Metadata\nconst question = report.agent_question ?? \"No question supplied.\";\nconst plan = report.plan_summary ?? \"No plan description returned.\";\nconst selectedToolsText = selectedTools.length\n  ? selectedTools.join(\", \")\n  : \"Not reported\";\n\nconst model = report.model ?? \"Not reported\";\nconst plannerStatus = report.planner_status ?? \"Not reported\";\nconst summarySource = report.summary_source ?? \"Not reported\";\nconst filename = report.filename ?? \"Unknown dataset\";\nconst mode = report.mode ?? \"local\";\n\n// HTML document\nconst html = `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>BioBatch Sentinel — Scientific Report</title>\n<style>\n*{box-sizing:border-box}\nbody{\n  margin:0;\n  background:#f3f6fb;\n  color:#172033;\n  font-family:Arial,Helvetica,sans-serif;\n  line-height:1.65\n}\nheader{\n  background:#142b4a;\n  color:#fff;\n  padding:34px 7%\n}\nheader h1{margin:0;font-size:30px}\nheader p{color:#d1dced;margin:7px 0}\nmain{max-width:1250px;margin:28px auto;padding:0 22px}\nsection,.card{\n  background:#fff;\n  border:1px solid #e0e7f0;\n  border-radius:12px;\n  padding:20px;\n  margin-bottom:20px\n}\n.cards{\n  display:grid;\n  grid-template-columns:repeat(auto-fit,minmax(155px,1fr));\n  gap:14px\n}\n.card span{display:block;color:#65748b;font-size:13px}\n.card strong{\n  display:block;\n  font-size:24px;\n  color:#16645c;\n  margin-top:6px;\n  overflow-wrap:anywhere\n}\nh2{font-size:21px;margin:0 0 15px;color:#203b5f}\nh3{font-size:17px;margin:20px 0 8px;color:#203b5f}\nh4{font-size:15px;color:#203b5f}\n.meta{\n  background:#f1f6fc;\n  border:1px solid #dae6f3;\n  border-radius:9px;\n  padding:14px 16px;\n  margin-bottom:18px;\n  overflow-wrap:anywhere\n}\n.meta p{margin:4px 0}\n.table-wrap{overflow-x:auto;width:100%}\ntable{border-collapse:collapse;width:100%;font-size:13px}\nth,td{\n  text-align:left;\n  vertical-align:top;\n  padding:10px;\n  border-bottom:1px solid #e7edf4;\n  overflow-wrap:anywhere\n}\nth{background:#edf3f9;color:#21344d}\ntr:hover td{background:#f8fbff}\n.summary p{margin:9px 0}\n.summary li{margin:6px 0}\n.summary ul,.summary ol{padding-left:24px}\n.summary code,code{\n  background:#eef2f7;\n  padding:2px 5px;\n  border-radius:4px\n}\n.note{\n  background:#fff8e7;\n  border-left:4px solid #d69a24;\n  padding:13px;\n  border-radius:5px;\n  margin-top:14px\n}\n.empty{color:#65748b;font-style:italic}\nfooter{text-align:center;color:#748196;padding:24px;font-size:12px}\n@media(max-width:600px){\n  header{padding:24px 18px}\n  header h1{font-size:25px}\n  main{padding:0 12px;margin-top:16px}\n  section{padding:15px}\n}\n@media print{\n  body{background:#fff}\n  header{print-color-adjust:exact;-webkit-print-color-adjust:exact}\n  section,.card{break-inside:avoid}\n}\n</style>\n</head>\n<body>\n<header>\n  <h1>BioBatch Sentinel</h1>\n  <p>Question-Aware Scientific Analysis Report</p>\n  <p>Dataset: ${escapeHtml(filename)} · Mode: ${escapeHtml(mode)}</p>\n  <p>Generated by the BioBatch Sentinel analysis pipeline</p>\n</header>\n<main>\n  <section>\n    <h2>Dataset Overview</h2>\n    <div class=\"cards\">${overviewHtml}</div>\n  </section>\n\n  <section>\n    <h2>Answer to Your Question</h2>\n    <div class=\"meta\">\n      <p><strong>Model:</strong> ${escapeHtml(model)}</p>\n      <p><strong>Planner Status:</strong> ${escapeHtml(plannerStatus)}</p>\n      <p><strong>Summary Source:</strong> ${escapeHtml(summarySource)}</p>\n      <p><strong>Question:</strong> ${escapeHtml(question)}</p>\n      <p><strong>Plan:</strong> ${escapeHtml(plan)}</p>\n      <p><strong>Selected Tools:</strong> ${escapeHtml(selectedToolsText)}</p>\n    </div>\n    <div class=\"summary\">${summaryHtml}</div>\n    <p class=\"note\">\n      Numeric findings are based on the local analysis results.\n      Interpret them in the context of the original records and\n      experimental design.\n    </p>\n  </section>\n\n  ${missingSection}\n  ${correlationSection}\n  ${strainSection}\n  ${timeCourseSection}\n  ${outlierSection}\n  ${traceSection}\n\n  <section>\n    <h2>Limitations and Notes</h2>\n    <p>${escapeHtml(\n      report.caution ??\n      \"Descriptive analysis only. Interpret findings in the context of the original data and experimental design.\"\n    )}</p>\n    <p>\n      Results are descriptive unless formal statistical tests are\n      performed. Correlation does not establish causation. Outlier\n      flags require review and do not automatically indicate errors.\n    </p>\n  </section>\n</main>\n<footer>\n  BioBatch Sentinel · Locally generated scientific analysis report\n</footer>\n</body>\n</html>`;\n\nreturn [\n  {\n    json: {\n      html,\n      filename: \"biobatch_sentinel_report.html\",\n      question,\n      selected_tools: selectedTools\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        144
+      ],
+      "id": "a0de1314-acfc-4583-b47e-304abeb3e0f1",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "html",
+        "options": {
+          "fileName": "biobatch_sentinel_report.html"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1488,
+        144
+      ],
+      "id": "74d003ed-7daa-433a-86bf-746846141132",
+      "name": "Convert to File1"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/reports/biobatch_sentinel_report.html",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1712,
+        144
+      ],
+      "id": "9b2188cf-34c7-402d-accb-c4875c11455e",
+      "name": "Read/Write Files from Disk1"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        240,
+        64
+      ],
+      "id": "de5d4c07-a5d7-4210-8268-08c281dfb2bb",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "formTitle": "BioBatch Sentinel — Scientific Data Analysis",
+        "formDescription": "Ask questions about your fermentation dataset, compare strains, investigate missing values, and generate scientific analysis reports.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "question",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        400,
+        192
+      ],
+      "id": "4878fad7-0f77-4295-81b2-52cd2926ddfe",
+      "name": "On form submission",
+      "webhookId": "322f3dc6-4b69-4473-85cf-f02e75e3b9fc"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Convert to File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File1": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5013cd1d-c9c8-44c1-a81b-001eb5f4c8cc",
+  "meta": {
+    "instanceId": "de1891fcd84c91605dad22cc2cefe402c14ae0aa82f7cc294f28535a7efe186e"
+  },
+  "nodeGroups": [],
+  "id": "HGp2lCOFEl7tw6CY",
+  "tags": []
+}
